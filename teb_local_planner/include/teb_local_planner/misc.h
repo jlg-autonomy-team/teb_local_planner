@@ -205,6 +205,30 @@ void teb_assert_msg_impl(const T expression, ARGS ...args) {
 
 #define TEB_ASSERT_MSG(expression, ...) teb_assert_msg_impl(expression, __VA_ARGS__)
 
+namespace g2o_utils
+{
+    inline double average_angle(double theta1, double theta2) {
+    double x, y;
+
+    x = std::cos(theta1) + std::cos(theta2);
+    y = std::sin(theta1) + std::sin(theta2);
+    if (x == 0 && y == 0)
+        return 0;
+    else
+        return std::atan2(y, x);
+    }
+
+    template <typename T>
+    inline int sign(T x) {
+    if (x > 0)
+        return 1;
+    else if (x < 0)
+        return -1;
+    else
+        return 0;
+    }
+}
+
 } // namespace teb_local_planner
 
 #endif /* MISC_H */
