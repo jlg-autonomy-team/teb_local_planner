@@ -267,7 +267,7 @@ public:
     trajectory.exact_arc_length = false;
     trajectory.force_reinit_new_goal_dist = 1;
     trajectory.force_reinit_new_goal_angular = 0.5 * M_PI;
-    trajectory.feasibility_check_no_poses = 5;
+    trajectory.feasibility_check_no_poses = -1;
     trajectory.feasibility_check_lookahead_distance = -1;
     trajectory.publish_feedback = false;
     trajectory.min_resolution_collision_check_angular = M_PI;
