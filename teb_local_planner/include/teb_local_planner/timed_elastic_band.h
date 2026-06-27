@@ -45,7 +45,7 @@
 #include <geometry_msgs/msg/pose2_d.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/pose_array.hpp>
-#include <tf2/buffer_core.h>
+#include <tf2/buffer_core.hpp>
 
 #include <cassert>
 #include <complex>

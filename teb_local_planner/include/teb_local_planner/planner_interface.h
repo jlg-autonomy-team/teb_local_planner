@@ -49,7 +49,7 @@
 #include <teb_local_planner/pose_se2.h>
 #include <teb_local_planner/robot_footprint_model.h>
 
-#include <tf2/transform_datatypes.h>
+#include <tf2/transform_datatypes.hpp>
 
 #include <nav2_costmap_2d/costmap_2d.hpp>
 

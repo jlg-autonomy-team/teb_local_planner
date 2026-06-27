@@ -79,7 +79,7 @@
 
 #include <dwb_critics/obstacle_footprint.hpp>
 
-#include <tf2/transform_datatypes.h>
+#include <tf2/transform_datatypes.hpp>
 
 #include <limits.h>
 
