@@ -1,133 +1,360 @@
-# - Try to find SUITESPARSE
-# Once done this will define
-#  
-#  SUITESPARSE_FOUND            - system has SUITESPARSE
-#  SUITESPARSE_INCLUDE_DIRS     - the SUITESPARSE include directory
-#  SUITESPARSE_LIBRARIES        - Link these to use SUITESPARSE
-#  SUITESPARSE_SPQR_LIBRARY     - name of spqr library (necessary due to error in debian package)
-#  SUITESPARSE_SPQR_LIBRARY_DIR - name of spqr library (necessary due to error in debian package)
-#  SUITESPARSE_LIBRARY_DIR      - Library main directory containing suitesparse libs
-#  SUITESPARSE_LIBRARY_DIRS     - all Library directories containing suitesparse libs
-#  SUITESPARSE_SPQR_VALID       - automatic identification whether or not spqr package is installed correctly
+include(FindPackageHandleStandardArgs)
 
-IF (SUITESPARSE_INCLUDE_DIRS)
-  # Already in cache, be silent
-  SET(SUITESPARSE_FIND_QUIETLY TRUE)
-ENDIF (SUITESPARSE_INCLUDE_DIRS)
+set(_SuiteSparse_ROOT_HINTS
+  ${SuiteSparse_ROOT}
+  $ENV{SuiteSparse_ROOT}
+  ${SUITESPARSE_ROOT}
+  $ENV{SUITESPARSE_ROOT}
+)
 
-if( WIN32 )
-   # Find cholmod part of the suitesparse library collection
+set(_SuiteSparse_INCLUDE_HINTS)
+set(_SuiteSparse_LIBRARY_HINTS)
 
-   FIND_PATH( CHOLMOD_INCLUDE_DIR cholmod.h
-              PATHS "C:\\libs\\win32\\SuiteSparse\\Include"  )
+foreach(_root IN LISTS _SuiteSparse_ROOT_HINTS)
+  if(_root)
+    list(APPEND _SuiteSparse_INCLUDE_HINTS
+      "${_root}/include"
+      "${_root}/include/suitesparse"
+    )
+    list(APPEND _SuiteSparse_LIBRARY_HINTS
+      "${_root}/lib"
+      "${_root}/lib64"
+    )
+  endif()
+endforeach()
 
-   # Add cholmod include directory to collection include directories
-   IF ( CHOLMOD_INCLUDE_DIR )
-	list ( APPEND SUITESPARSE_INCLUDE_DIRS ${CHOLMOD_INCLUDE_DIR} )
-   ENDIF( CHOLMOD_INCLUDE_DIR )
+# Standard system locations are also searched automatically by find_path()
+# and find_library().
+find_path(SuiteSparse_INCLUDE_DIR
+  NAMES cholmod.h
+  HINTS ${_SuiteSparse_INCLUDE_HINTS}
+  PATH_SUFFIXES suitesparse
+)
 
+find_library(SuiteSparse_CONFIG_LIBRARY
+  NAMES suitesparseconfig SuiteSparse_config
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-   # find path suitesparse library
-   FIND_PATH( SUITESPARSE_LIBRARY_DIRS 
-	         amd.lib
-               PATHS "C:\\libs\\win32\\SuiteSparse\\libs" )
+find_library(SuiteSparse_CHOLMOD_LIBRARY
+  NAMES cholmod
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-   # if we found the library, add it to the defined libraries
-   IF ( SUITESPARSE_LIBRARY_DIRS )
-	list ( APPEND SUITESPARSE_LIBRARIES optimized;amd;optimized;camd;optimized;ccolamd;optimized;cholmod;optimized;colamd;optimized;metis;optimized;spqr;optimized;umfpack;debug;amdd;debug;camdd;debug;ccolamdd;debug;cholmodd;debug;spqrd;debug;umfpackd;debug;colamdd;debug;metisd;optimized;blas;optimized;libf2c;optimized;lapack;debug;blasd;debug;libf2cd;debug;lapackd )
-   ENDIF( SUITESPARSE_LIBRARY_DIRS )  
+find_library(SuiteSparse_UMFPACK_LIBRARY
+  NAMES umfpack
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-else( WIN32 )
-   IF(APPLE)
-	   FIND_PATH( CHOLMOD_INCLUDE_DIR cholmod.h
-        	      PATHS /opt/local/include/ufsparse
-			    /usr/local/include )
+find_library(SuiteSparse_SPQR_LIBRARY
+  NAMES spqr
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-           FIND_PATH( SUITESPARSE_LIBRARY_DIR
-                      NAMES libcholmod.a
-                      PATHS /opt/local/lib
-			    /usr/local/lib )
-   ELSE(APPLE)
-	   FIND_PATH( CHOLMOD_INCLUDE_DIR cholmod.h
-        	      PATHS /usr/local/include 
-        	            /usr/include 
-        	            /usr/include/suitesparse/ 
-        	            ${CMAKE_SOURCE_DIR}/MacOS/Libs/cholmod
-              	      PATH_SUFFIXES cholmod/ CHOLMOD/ )
-   	
-           FIND_PATH( SUITESPARSE_LIBRARY_DIR
-                      NAMES libcholmod.so libcholmod.a
-                      PATHS /usr/lib 
-                            /usr/lib64
-                            /usr/lib/x86_64-linux-gnu
-                            /usr/lib/i386-linux-gnu
-                            /usr/local/lib
-                            /usr/lib/arm-linux-gnueabihf/
-                            /usr/lib/aarch64-linux-gnu/
-                            /usr/lib/arm-linux-gnueabi/
-                            /usr/lib/arm-linux-gnu)
-   ENDIF(APPLE)
+# Required SuiteSparse dependencies used by CHOLMOD, UMFPACK, and SPQR.
+find_library(SuiteSparse_AMD_LIBRARY
+  NAMES amd
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-   # Add cholmod include directory to collection include directories
-   IF ( CHOLMOD_INCLUDE_DIR )
-	list ( APPEND SUITESPARSE_INCLUDE_DIRS ${CHOLMOD_INCLUDE_DIR} )
-   ENDIF( CHOLMOD_INCLUDE_DIR )
+find_library(SuiteSparse_CAMD_LIBRARY
+  NAMES camd
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-   # if we found the library, add it to the defined libraries
-   IF ( SUITESPARSE_LIBRARY_DIR )
+find_library(SuiteSparse_CCOLAMD_LIBRARY
+  NAMES ccolamd
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-       list ( APPEND SUITESPARSE_LIBRARIES amd)
-       list ( APPEND SUITESPARSE_LIBRARIES btf)
-       list ( APPEND SUITESPARSE_LIBRARIES camd)
-       list ( APPEND SUITESPARSE_LIBRARIES ccolamd)
-       list ( APPEND SUITESPARSE_LIBRARIES cholmod)
-       list ( APPEND SUITESPARSE_LIBRARIES colamd)
- #     list ( APPEND SUITESPARSE_LIBRARIES csparse)
-       list ( APPEND SUITESPARSE_LIBRARIES cxsparse)
-       list ( APPEND SUITESPARSE_LIBRARIES klu)
- #     list ( APPEND SUITESPARSE_LIBRARIES spqr)
-       list ( APPEND SUITESPARSE_LIBRARIES umfpack)
+find_library(SuiteSparse_COLAMD_LIBRARY
+  NAMES colamd
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-       IF (APPLE)
-           list ( APPEND SUITESPARSE_LIBRARIES suitesparseconfig)
-       ENDIF (APPLE)
+# Optional SuiteSparse components.
+find_library(SuiteSparse_BTF_LIBRARY
+  NAMES btf
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-       # Metis and spqr are optional
-       FIND_LIBRARY( SUITESPARSE_METIS_LIBRARY
-                     NAMES metis
-                     PATHS ${SUITESPARSE_LIBRARY_DIR} )
-       IF (SUITESPARSE_METIS_LIBRARY)			
-	  list ( APPEND SUITESPARSE_LIBRARIES metis)
-       ENDIF(SUITESPARSE_METIS_LIBRARY)
+find_library(SuiteSparse_CXSPARSE_LIBRARY
+  NAMES cxsparse csparse
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-       if(EXISTS  "${CHOLMOD_INCLUDE_DIR}/SuiteSparseQR.hpp")
-	  SET(SUITESPARSE_SPQR_VALID TRUE CACHE BOOL "SuiteSparseSPQR valid")
-       else()
-	  SET(SUITESPARSE_SPQR_VALID false CACHE BOOL "SuiteSparseSPQR valid")
-       endif()
+find_library(SuiteSparse_KLU_LIBRARY
+  NAMES klu
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
-       if(SUITESPARSE_SPQR_VALID)
-	  FIND_LIBRARY( SUITESPARSE_SPQR_LIBRARY
-		      NAMES spqr
-		      PATHS ${SUITESPARSE_LIBRARY_DIR} )
-	  IF (SUITESPARSE_SPQR_LIBRARY)			
-	    list ( APPEND SUITESPARSE_LIBRARIES spqr)
-	  ENDIF (SUITESPARSE_SPQR_LIBRARY)
-       endif()
-       
-    ENDIF( SUITESPARSE_LIBRARY_DIR )  
-   
-endif( WIN32 )
+# METIS is external to SuiteSparse but can be used by CHOLMOD/SPQR.
+find_library(SuiteSparse_METIS_LIBRARY
+  NAMES metis
+  HINTS ${_SuiteSparse_LIBRARY_HINTS}
+)
 
+# Optional numerical dependencies. SuiteSparse shared libraries often already
+# carry these as transitive dependencies, but they are needed for static
+# linking.
+find_package(BLAS QUIET)
+find_package(LAPACK QUIET)
+find_package(Threads QUIET)
 
-IF (SUITESPARSE_INCLUDE_DIRS AND SUITESPARSE_LIBRARIES)
-   IF(WIN32)
-    list (APPEND SUITESPARSE_INCLUDE_DIRS ${CHOLMOD_INCLUDE_DIR}/../../UFconfig )
-   ENDIF(WIN32)
-   SET(SUITESPARSE_FOUND TRUE)
-   MESSAGE(STATUS "Found SuiteSparse")
-ELSE (SUITESPARSE_INCLUDE_DIRS AND SUITESPARSE_LIBRARIES)
-   SET( SUITESPARSE_FOUND FALSE )
-   MESSAGE(FATAL_ERROR "Unable to find SuiteSparse")
-ENDIF (SUITESPARSE_INCLUDE_DIRS AND SUITESPARSE_LIBRARIES)
+if(NOT SuiteSparse_FIND_COMPONENTS)
+  set(SuiteSparse_FIND_COMPONENTS CHOLMOD)
+endif()
 
+# Required variables common to all SuiteSparse components.
+set(_SuiteSparse_REQUIRED_VARS
+  SuiteSparse_INCLUDE_DIR
+  SuiteSparse_CONFIG_LIBRARY
+  SuiteSparse_AMD_LIBRARY
+  SuiteSparse_CAMD_LIBRARY
+  SuiteSparse_CCOLAMD_LIBRARY
+  SuiteSparse_COLAMD_LIBRARY
+)
+
+foreach(_component IN LISTS SuiteSparse_FIND_COMPONENTS)
+  string(TOUPPER "${_component}" _component_upper)
+
+  if(_component_upper STREQUAL "CHOLMOD")
+    if(SuiteSparse_CHOLMOD_LIBRARY)
+      set(SuiteSparse_CHOLMOD_FOUND TRUE)
+      list(APPEND _SuiteSparse_REQUIRED_VARS
+        SuiteSparse_CHOLMOD_LIBRARY
+      )
+    else()
+      set(SuiteSparse_CHOLMOD_FOUND FALSE)
+    endif()
+
+  elseif(_component_upper STREQUAL "UMFPACK")
+    if(SuiteSparse_UMFPACK_LIBRARY)
+      set(SuiteSparse_UMFPACK_FOUND TRUE)
+      list(APPEND _SuiteSparse_REQUIRED_VARS
+        SuiteSparse_UMFPACK_LIBRARY
+      )
+    else()
+      set(SuiteSparse_UMFPACK_FOUND FALSE)
+    endif()
+
+  elseif(_component_upper STREQUAL "SPQR")
+    if(SuiteSparse_SPQR_LIBRARY)
+      set(SuiteSparse_SPQR_FOUND TRUE)
+      list(APPEND _SuiteSparse_REQUIRED_VARS
+        SuiteSparse_SPQR_LIBRARY
+      )
+    else()
+      set(SuiteSparse_SPQR_FOUND FALSE)
+    endif()
+
+  elseif(_component_upper STREQUAL "METIS")
+    if(SuiteSparse_METIS_LIBRARY)
+      set(SuiteSparse_METIS_FOUND TRUE)
+    else()
+      set(SuiteSparse_METIS_FOUND FALSE)
+    endif()
+
+    # METIS becomes required only when explicitly listed as a component.
+    list(APPEND _SuiteSparse_REQUIRED_VARS
+      SuiteSparse_METIS_LIBRARY
+    )
+
+  else()
+    set(SuiteSparse_${_component}_FOUND FALSE)
+    message(WARNING
+      "Unknown SuiteSparse component requested: ${_component}"
+    )
+  endif()
+endforeach()
+
+find_package_handle_standard_args(SuiteSparse
+  REQUIRED_VARS ${_SuiteSparse_REQUIRED_VARS}
+  HANDLE_COMPONENTS
+)
+
+if(NOT SuiteSparse_FOUND)
+  return()
+endif()
+
+function(_SuiteSparse_add_imported_target target_name library_path)
+  if(library_path AND NOT TARGET "${target_name}")
+    add_library("${target_name}" UNKNOWN IMPORTED)
+
+    set_target_properties("${target_name}" PROPERTIES
+      IMPORTED_LOCATION "${library_path}"
+      INTERFACE_INCLUDE_DIRECTORIES "${SuiteSparse_INCLUDE_DIR}"
+    )
+  endif()
+endfunction()
+
+# Base targets.
+_SuiteSparse_add_imported_target(
+  SuiteSparse::config
+  "${SuiteSparse_CONFIG_LIBRARY}"
+)
+
+_SuiteSparse_add_imported_target(
+  SuiteSparse::amd
+  "${SuiteSparse_AMD_LIBRARY}"
+)
+
+_SuiteSparse_add_imported_target(
+  SuiteSparse::camd
+  "${SuiteSparse_CAMD_LIBRARY}"
+)
+
+_SuiteSparse_add_imported_target(
+  SuiteSparse::ccolamd
+  "${SuiteSparse_CCOLAMD_LIBRARY}"
+)
+
+_SuiteSparse_add_imported_target(
+  SuiteSparse::colamd
+  "${SuiteSparse_COLAMD_LIBRARY}"
+)
+
+# Optional component targets.
+_SuiteSparse_add_imported_target(
+  SuiteSparse::METIS
+  "${SuiteSparse_METIS_LIBRARY}"
+)
+
+_SuiteSparse_add_imported_target(
+  SuiteSparse::BTF
+  "${SuiteSparse_BTF_LIBRARY}"
+)
+
+_SuiteSparse_add_imported_target(
+  SuiteSparse::CXSparse
+  "${SuiteSparse_CXSPARSE_LIBRARY}"
+)
+
+_SuiteSparse_add_imported_target(
+  SuiteSparse::KLU
+  "${SuiteSparse_KLU_LIBRARY}"
+)
+
+_SuiteSparse_add_imported_target(
+  SuiteSparse::CHOLMOD
+  "${SuiteSparse_CHOLMOD_LIBRARY}"
+)
+
+_SuiteSparse_add_imported_target(
+  SuiteSparse::UMFPACK
+  "${SuiteSparse_UMFPACK_LIBRARY}"
+)
+
+_SuiteSparse_add_imported_target(
+  SuiteSparse::SPQR
+  "${SuiteSparse_SPQR_LIBRARY}"
+)
+
+# Select BLAS/LAPACK targets or raw library paths for static-link support.
+set(_SuiteSparse_NUMERIC_LIBRARIES)
+
+if(TARGET LAPACK::LAPACK)
+  list(APPEND _SuiteSparse_NUMERIC_LIBRARIES LAPACK::LAPACK)
+elseif(LAPACK_LIBRARIES)
+  list(APPEND _SuiteSparse_NUMERIC_LIBRARIES ${LAPACK_LIBRARIES})
+endif()
+
+if(NOT _SuiteSparse_NUMERIC_LIBRARIES)
+  if(TARGET BLAS::BLAS)
+    list(APPEND _SuiteSparse_NUMERIC_LIBRARIES BLAS::BLAS)
+  elseif(BLAS_LIBRARIES)
+    list(APPEND _SuiteSparse_NUMERIC_LIBRARIES ${BLAS_LIBRARIES})
+  endif()
+endif()
+
+if(TARGET Threads::Threads)
+  list(APPEND _SuiteSparse_NUMERIC_LIBRARIES Threads::Threads)
+endif()
+
+set(_SuiteSparse_COMMON_LIBRARIES
+  SuiteSparse::config
+  SuiteSparse::amd
+  SuiteSparse::camd
+  SuiteSparse::ccolamd
+  SuiteSparse::colamd
+)
+
+# CHOLMOD dependencies.
+if(TARGET SuiteSparse::CHOLMOD)
+  set(_SuiteSparse_CHOLMOD_LIBRARIES
+    ${_SuiteSparse_COMMON_LIBRARIES}
+    ${_SuiteSparse_NUMERIC_LIBRARIES}
+  )
+
+  if(TARGET SuiteSparse::METIS)
+    list(APPEND _SuiteSparse_CHOLMOD_LIBRARIES
+      SuiteSparse::METIS
+    )
+  endif()
+
+  set_property(TARGET SuiteSparse::CHOLMOD APPEND PROPERTY
+    INTERFACE_LINK_LIBRARIES
+    "${_SuiteSparse_CHOLMOD_LIBRARIES}"
+  )
+endif()
+
+# UMFPACK dependencies.
+if(TARGET SuiteSparse::UMFPACK)
+  set_property(TARGET SuiteSparse::UMFPACK APPEND PROPERTY
+    INTERFACE_LINK_LIBRARIES
+    "${_SuiteSparse_COMMON_LIBRARIES}"
+  )
+endif()
+
+# SPQR dependencies.
+if(TARGET SuiteSparse::SPQR)
+  set(_SuiteSparse_SPQR_LIBRARIES
+    SuiteSparse::CHOLMOD
+    ${_SuiteSparse_COMMON_LIBRARIES}
+    ${_SuiteSparse_NUMERIC_LIBRARIES}
+  )
+
+  if(TARGET SuiteSparse::METIS)
+    list(APPEND _SuiteSparse_SPQR_LIBRARIES
+      SuiteSparse::METIS
+    )
+  endif()
+
+  set_property(TARGET SuiteSparse::SPQR APPEND PROPERTY
+    INTERFACE_LINK_LIBRARIES
+    "${_SuiteSparse_SPQR_LIBRARIES}"
+  )
+endif()
+
+# Compatibility variables for older consumers.
+set(SuiteSparse_INCLUDE_DIRS
+  "${SuiteSparse_INCLUDE_DIR}"
+)
+
+set(SuiteSparse_LIBRARIES)
+
+foreach(_target IN ITEMS
+    SuiteSparse::CHOLMOD
+    SuiteSparse::UMFPACK
+    SuiteSparse::SPQR
+)
+  if(TARGET "${_target}")
+    list(APPEND SuiteSparse_LIBRARIES "${_target}")
+  endif()
+endforeach()
+
+mark_as_advanced(
+  SuiteSparse_INCLUDE_DIR
+  SuiteSparse_CONFIG_LIBRARY
+  SuiteSparse_CHOLMOD_LIBRARY
+  SuiteSparse_UMFPACK_LIBRARY
+  SuiteSparse_SPQR_LIBRARY
+  SuiteSparse_AMD_LIBRARY
+  SuiteSparse_CAMD_LIBRARY
+  SuiteSparse_CCOLAMD_LIBRARY
+  SuiteSparse_COLAMD_LIBRARY
+  SuiteSparse_METIS_LIBRARY
+  SuiteSparse_BTF_LIBRARY
+  SuiteSparse_CXSPARSE_LIBRARY
+  SuiteSparse_KLU_LIBRARY
+)

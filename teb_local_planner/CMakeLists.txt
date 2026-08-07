@@ -3,6 +3,52 @@ project(teb_local_planner)
 
 # Set to Release in order to speed up the program significantly
 set(CMAKE_BUILD_TYPE Release) #None, Debug, Release, RelWithDebInfo, MinSizeRel
+option(TEB_DISABLE_LTO
+  "Disable LTO/IPO for teb_local_planner only" ON)
+
+if(TEB_DISABLE_LTO)
+  foreach(flag_var
+      CMAKE_C_FLAGS
+      CMAKE_CXX_FLAGS
+      CMAKE_EXE_LINKER_FLAGS
+      CMAKE_SHARED_LINKER_FLAGS
+      CMAKE_MODULE_LINKER_FLAGS)
+
+    set(_teb_saved_${flag_var} "${${flag_var}}")
+
+    string(REGEX REPLACE
+      "(^|[ \t])(-flto([=][^ \t]+)?|-ipo)([ \t]|$)"
+      "\\1\\4"
+      ${flag_var}
+      "${${flag_var}}")
+  endforeach()
+  set(TEB_USE_FULL_LTO OFF CACHE BOOL
+    "Use full LTO for teb_local_planner"
+    FORCE
+  )
+endif()
+
+option(TEB_USE_FULL_LTO
+  "Use full LTO for teb_local_planner" OFF)
+
+if(TEB_USE_FULL_LTO)
+  # Remove inherited LTO/IPO flags while preserving every other flag.
+  foreach(_flag_var
+      CMAKE_C_FLAGS
+      CMAKE_CXX_FLAGS
+      CMAKE_EXE_LINKER_FLAGS
+      CMAKE_SHARED_LINKER_FLAGS
+      CMAKE_MODULE_LINKER_FLAGS)
+
+    string(REGEX REPLACE
+      "(^|[ \t])(-flto([=][^ \t]+)?|-ipo)([ \t]|$)"
+      "\\1\\4"
+      ${_flag_var}
+      "${${_flag_var}}")
+  endforeach()
+
+endif()
+
 
 # Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
@@ -38,12 +84,30 @@ find_package(visualization_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 
 message(STATUS "System: ${CMAKE_SYSTEM}")
-## System dependencies are found with CMake's conventions
-SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake_modules)
-message(STATUS "${CMAKE_MODULE_PATH}")
-find_package(SUITESPARSE REQUIRED)
-find_package(G2O REQUIRED)
+cmake_policy(SET CMP0072 NEW)
+set(OpenGL_GL_PREFERENCE GLVND)
+
+find_package(g2o CONFIG REQUIRED)
 find_package(Boost REQUIRED)
+list(PREPEND CMAKE_MODULE_PATH
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules"
+)
+
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules/FindSUITESPARSE.cmake")
+  message(FATAL_ERROR
+    "Expected SuiteSparse finder at "
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules/FindSUITESPARSE.cmake"
+ )
+endif()
+
+find_package(SuiteSparse_config CONFIG REQUIRED)
+find_package(AMD CONFIG REQUIRED)
+find_package(COLAMD CONFIG REQUIRED)
+find_package(CAMD CONFIG REQUIRED)
+find_package(CCOLAMD CONFIG REQUIRED)
+find_package(CHOLMOD CONFIG REQUIRED)
+find_package(UMFPACK CONFIG REQUIRED)
+find_package(SPQR CONFIG REQUIRED)
 
 # Eigen3 FindScript Backward compatibility (ubuntu saucy)
 # Since FindEigen.cmake is deprecated starting from jade.
@@ -57,8 +121,8 @@ elseif (EXISTS "FindEigen.cmake")
   e.g. by adding it to ${PROJECT_SOURCE_DIR}/cmake_modules.")
 endif (EXISTS "FindEigen3.cmake")
 
-set(EXTERNAL_INCLUDE_DIRS ${Eigen_INCLUDE_DIRS} ${SUITESPARSE_INCLUDE_DIRS} ${G2O_INCLUDE_DIR})
-set(EXTERNAL_LIBS ${Boost_LIBRARIES} ${SUITESPARSE_LIBRARIES} ${G2O_LIBRARIES})
+set(EXTERNAL_INCLUDE_DIRS ${Eigen_INCLUDE_DIRS} ${G2O_INCLUDE_DIR} ${CHOLMOD_INCLUDE_DIR} ${UMFPACK_INCLUDE_DIR} ${SPQR_INCLUDE_DIR}) 
+set(EXTERNAL_LIBS ${Boost_LIBRARIES} ${G2O_LIBRARIES} ${CHOLMOD_LIBRARY} ${UMFPACK_LIBRARY} ${SPQR_LIBRARY})
 
 ###########
 ## Build ##
@@ -82,6 +146,11 @@ add_library(teb_local_planner SHARED
    src/homotopy_class_planner.cpp
    src/teb_local_planner_ros.cpp
    src/graph_search.cpp
+)
+
+# Work around the Intel optimizer crash only for the translation unit that triggers it.
+set_source_files_properties(src/teb_config.cpp
+  PROPERTIES COMPILE_OPTIONS "-qno-opt-dynamic-align"
 )
 
 set(ament_dependencies
@@ -115,6 +184,45 @@ target_link_libraries(teb_local_planner
 
 target_compile_definitions(teb_local_planner PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 
+if(TEB_USE_FULL_LTO)
+  set_property(TARGET teb_local_planner
+    PROPERTY INTERPROCEDURAL_OPTIMIZATION OFF)
+
+  target_compile_options(teb_local_planner
+    PRIVATE
+      -flto=full)
+
+  target_link_options(teb_local_planner
+    PRIVATE
+      -flto=full)
+endif()
+
+if(TEB_DISABLE_LTO)
+  set_property(TARGET teb_local_planner
+    PROPERTY INTERPROCEDURAL_OPTIMIZATION OFF)
+
+  target_compile_options(teb_local_planner
+  PUBLIC
+  -march=$ENV{OPTARCH}
+  -mtune=$ENV{OPTARCH}
+  -fPIC 
+  -include stdint.h 
+  -D_GNU_SOURCE 
+  -qopenmp 
+  -qopt-for-throughput=multi-job 
+    )
+
+    target_compile_options(teb_local_planner
+      PRIVATE
+      -fno-lto
+    )
+    target_link_options(teb_local_planner
+        PRIVATE
+          -fuse-ld=lld
+          -fno-lto
+          -Wl,--apply-dynamic-relocs,-Bsymbolic,--emit-relocs,--export-dynamic,--fat-lto-objects,--no-as-needed,--no-gc-sections,-use-intel-optimized-headers)
+
+endif()
 
 #############
 ## Install ##
