@@ -1,133 +1,72 @@
-# - Try to find SUITESPARSE
-# Once done this will define
-#  
-#  SUITESPARSE_FOUND            - system has SUITESPARSE
-#  SUITESPARSE_INCLUDE_DIRS     - the SUITESPARSE include directory
-#  SUITESPARSE_LIBRARIES        - Link these to use SUITESPARSE
-#  SUITESPARSE_SPQR_LIBRARY     - name of spqr library (necessary due to error in debian package)
-#  SUITESPARSE_SPQR_LIBRARY_DIR - name of spqr library (necessary due to error in debian package)
-#  SUITESPARSE_LIBRARY_DIR      - Library main directory containing suitesparse libs
-#  SUITESPARSE_LIBRARY_DIRS     - all Library directories containing suitesparse libs
-#  SUITESPARSE_SPQR_VALID       - automatic identification whether or not spqr package is installed correctly
+# - Find SuiteSparse (CHOLMOD, AMD, CAMD, COLAMD, CCOLAMD, and suitesparseconfig)
+# Output variables:
+#   SUITESPARSE_FOUND
+#   SUITESPARSE_INCLUDE_DIRS
+#   SUITESPARSE_LIBRARIES
 
-IF (SUITESPARSE_INCLUDE_DIRS)
-  # Already in cache, be silent
-  SET(SUITESPARSE_FIND_QUIETLY TRUE)
-ENDIF (SUITESPARSE_INCLUDE_DIRS)
+find_path(CHOLMOD_INCLUDE_DIR
+  NAMES cholmod.h
+  PATHS
+    /usr/local/include
+    /usr/local/include/suitesparse
+    /usr/include
+    /usr/include/suitesparse
+  PATH_SUFFIXES cholmod
+)
 
-if( WIN32 )
-   # Find cholmod part of the suitesparse library collection
+set(SUITESPARSE_SEARCH_LIB_PATHS
+  /usr/local/lib
+  /usr/lib
+  /usr/lib/aarch64-linux-gnu
+  /usr/lib/x86_64-linux-gnu
+)
 
-   FIND_PATH( CHOLMOD_INCLUDE_DIR cholmod.h
-              PATHS "C:\\libs\\win32\\SuiteSparse\\Include"  )
+find_library(CHOLMOD_LIB NAMES cholmod PATHS ${SUITESPARSE_SEARCH_LIB_PATHS} NO_DEFAULT_PATH)
+find_library(AMD_LIB NAMES amd PATHS ${SUITESPARSE_SEARCH_LIB_PATHS} NO_DEFAULT_PATH)
+find_library(COLAMD_LIB NAMES colamd PATHS ${SUITESPARSE_SEARCH_LIB_PATHS} NO_DEFAULT_PATH)
+find_library(CAMD_LIB NAMES camd PATHS ${SUITESPARSE_SEARCH_LIB_PATHS} NO_DEFAULT_PATH)
+find_library(CCOLAMD_LIB NAMES ccolamd PATHS ${SUITESPARSE_SEARCH_LIB_PATHS} NO_DEFAULT_PATH)
+find_library(SUITESPARSECONFIG_LIB NAMES suitesparseconfig PATHS ${SUITESPARSE_SEARCH_LIB_PATHS} NO_DEFAULT_PATH)
 
-   # Add cholmod include directory to collection include directories
-   IF ( CHOLMOD_INCLUDE_DIR )
-	list ( APPEND SUITESPARSE_INCLUDE_DIRS ${CHOLMOD_INCLUDE_DIR} )
-   ENDIF( CHOLMOD_INCLUDE_DIR )
+# Fallback searches if NO_DEFAULT_PATH missed standard roots
+if(NOT CHOLMOD_LIB)
+  find_library(CHOLMOD_LIB NAMES cholmod)
+  find_library(AMD_LIB NAMES amd)
+  find_library(COLAMD_LIB NAMES colamd)
+  find_library(CAMD_LIB NAMES camd)
+  find_library(CCOLAMD_LIB NAMES ccolamd)
+  find_library(SUITESPARSECONFIG_LIB NAMES suitesparseconfig)
+endif()
 
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(SUITESPARSE
+  DEFAULT_MSG
+  CHOLMOD_INCLUDE_DIR
+  CHOLMOD_LIB
+)
 
-   # find path suitesparse library
-   FIND_PATH( SUITESPARSE_LIBRARY_DIRS 
-	         amd.lib
-               PATHS "C:\\libs\\win32\\SuiteSparse\\libs" )
+if(SUITESPARSE_FOUND)
+  set(SUITESPARSE_INCLUDE_DIRS ${CHOLMOD_INCLUDE_DIR})
+  set(SUITESPARSE_LIBRARIES
+    ${CHOLMOD_LIB}
+    ${AMD_LIB}
+    ${COLAMD_LIB}
+  )
+  if(CAMD_LIB)
+    list(APPEND SUITESPARSE_LIBRARIES ${CAMD_LIB})
+  endif()
+  if(CCOLAMD_LIB)
+    list(APPEND SUITESPARSE_LIBRARIES ${CCOLAMD_LIB})
+  endif()
+  if(SUITESPARSECONFIG_LIB)
+    list(APPEND SUITESPARSE_LIBRARIES ${SUITESPARSECONFIG_LIB})
+  endif()
 
-   # if we found the library, add it to the defined libraries
-   IF ( SUITESPARSE_LIBRARY_DIRS )
-	list ( APPEND SUITESPARSE_LIBRARIES optimized;amd;optimized;camd;optimized;ccolamd;optimized;cholmod;optimized;colamd;optimized;metis;optimized;spqr;optimized;umfpack;debug;amdd;debug;camdd;debug;ccolamdd;debug;cholmodd;debug;spqrd;debug;umfpackd;debug;colamdd;debug;metisd;optimized;blas;optimized;libf2c;optimized;lapack;debug;blasd;debug;libf2cd;debug;lapackd )
-   ENDIF( SUITESPARSE_LIBRARY_DIRS )  
-
-else( WIN32 )
-   IF(APPLE)
-	   FIND_PATH( CHOLMOD_INCLUDE_DIR cholmod.h
-        	      PATHS /opt/local/include/ufsparse
-			    /usr/local/include )
-
-           FIND_PATH( SUITESPARSE_LIBRARY_DIR
-                      NAMES libcholmod.a
-                      PATHS /opt/local/lib
-			    /usr/local/lib )
-   ELSE(APPLE)
-	   FIND_PATH( CHOLMOD_INCLUDE_DIR cholmod.h
-        	      PATHS /usr/local/include 
-        	            /usr/include 
-        	            /usr/include/suitesparse/ 
-        	            ${CMAKE_SOURCE_DIR}/MacOS/Libs/cholmod
-              	      PATH_SUFFIXES cholmod/ CHOLMOD/ )
-   	
-           FIND_PATH( SUITESPARSE_LIBRARY_DIR
-                      NAMES libcholmod.so libcholmod.a
-                      PATHS /usr/lib 
-                            /usr/lib64
-                            /usr/lib/x86_64-linux-gnu
-                            /usr/lib/i386-linux-gnu
-                            /usr/local/lib
-                            /usr/lib/arm-linux-gnueabihf/
-                            /usr/lib/aarch64-linux-gnu/
-                            /usr/lib/arm-linux-gnueabi/
-                            /usr/lib/arm-linux-gnu)
-   ENDIF(APPLE)
-
-   # Add cholmod include directory to collection include directories
-   IF ( CHOLMOD_INCLUDE_DIR )
-	list ( APPEND SUITESPARSE_INCLUDE_DIRS ${CHOLMOD_INCLUDE_DIR} )
-   ENDIF( CHOLMOD_INCLUDE_DIR )
-
-   # if we found the library, add it to the defined libraries
-   IF ( SUITESPARSE_LIBRARY_DIR )
-
-       list ( APPEND SUITESPARSE_LIBRARIES amd)
-       list ( APPEND SUITESPARSE_LIBRARIES btf)
-       list ( APPEND SUITESPARSE_LIBRARIES camd)
-       list ( APPEND SUITESPARSE_LIBRARIES ccolamd)
-       list ( APPEND SUITESPARSE_LIBRARIES cholmod)
-       list ( APPEND SUITESPARSE_LIBRARIES colamd)
- #     list ( APPEND SUITESPARSE_LIBRARIES csparse)
-       list ( APPEND SUITESPARSE_LIBRARIES cxsparse)
-       list ( APPEND SUITESPARSE_LIBRARIES klu)
- #     list ( APPEND SUITESPARSE_LIBRARIES spqr)
-       list ( APPEND SUITESPARSE_LIBRARIES umfpack)
-
-       IF (APPLE)
-           list ( APPEND SUITESPARSE_LIBRARIES suitesparseconfig)
-       ENDIF (APPLE)
-
-       # Metis and spqr are optional
-       FIND_LIBRARY( SUITESPARSE_METIS_LIBRARY
-                     NAMES metis
-                     PATHS ${SUITESPARSE_LIBRARY_DIR} )
-       IF (SUITESPARSE_METIS_LIBRARY)			
-	  list ( APPEND SUITESPARSE_LIBRARIES metis)
-       ENDIF(SUITESPARSE_METIS_LIBRARY)
-
-       if(EXISTS  "${CHOLMOD_INCLUDE_DIR}/SuiteSparseQR.hpp")
-	  SET(SUITESPARSE_SPQR_VALID TRUE CACHE BOOL "SuiteSparseSPQR valid")
-       else()
-	  SET(SUITESPARSE_SPQR_VALID false CACHE BOOL "SuiteSparseSPQR valid")
-       endif()
-
-       if(SUITESPARSE_SPQR_VALID)
-	  FIND_LIBRARY( SUITESPARSE_SPQR_LIBRARY
-		      NAMES spqr
-		      PATHS ${SUITESPARSE_LIBRARY_DIR} )
-	  IF (SUITESPARSE_SPQR_LIBRARY)			
-	    list ( APPEND SUITESPARSE_LIBRARIES spqr)
-	  ENDIF (SUITESPARSE_SPQR_LIBRARY)
-       endif()
-       
-    ENDIF( SUITESPARSE_LIBRARY_DIR )  
-   
-endif( WIN32 )
-
-
-IF (SUITESPARSE_INCLUDE_DIRS AND SUITESPARSE_LIBRARIES)
-   IF(WIN32)
-    list (APPEND SUITESPARSE_INCLUDE_DIRS ${CHOLMOD_INCLUDE_DIR}/../../UFconfig )
-   ENDIF(WIN32)
-   SET(SUITESPARSE_FOUND TRUE)
-   MESSAGE(STATUS "Found SuiteSparse")
-ELSE (SUITESPARSE_INCLUDE_DIRS AND SUITESPARSE_LIBRARIES)
-   SET( SUITESPARSE_FOUND FALSE )
-   MESSAGE(FATAL_ERROR "Unable to find SuiteSparse")
-ENDIF (SUITESPARSE_INCLUDE_DIRS AND SUITESPARSE_LIBRARIES)
-
+  if(NOT TARGET SuiteSparse::CHOLMOD)
+    add_library(SuiteSparse::CHOLMOD INTERFACE IMPORTED)
+    set_target_properties(SuiteSparse::CHOLMOD PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${SUITESPARSE_INCLUDE_DIRS}"
+      INTERFACE_LINK_LIBRARIES "${SUITESPARSE_LIBRARIES}"
+    )
+  endif()
+endif()

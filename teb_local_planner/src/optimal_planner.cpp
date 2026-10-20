@@ -40,6 +40,7 @@
 #include <tf2_ros/buffer_interface.h>
 
 #include "teb_local_planner/optimal_planner.h"
+#include "teb_local_planner/misc.h"
 
 #include <map>
 // g2o custom edges and vertices for the TEB planner
@@ -1113,7 +1114,7 @@ void TebOptimalPlanner::extractVelocity(const PoseSE2& pose1, const PoseSE2& pos
     Eigen::Vector2d conf1dir( cos(pose1.theta()), sin(pose1.theta()) );
     // translational velocity
     double dir = deltaS.dot(conf1dir);
-    vx = (double) g2o::sign(dir) * deltaS.norm()/dt;
+    vx = (double) g2o_utils::sign(dir) * deltaS.norm()/dt;
     vy = 0;
   }
   else // holonomic robot
