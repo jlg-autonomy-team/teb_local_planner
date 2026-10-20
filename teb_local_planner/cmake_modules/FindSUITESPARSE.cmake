@@ -1,3 +1,4 @@
+
 # - Find SuiteSparse (CHOLMOD, AMD, CAMD, COLAMD, CCOLAMD, and suitesparseconfig)
 # Output variables:
 #   SUITESPARSE_FOUND
@@ -70,3 +71,4 @@ if(SUITESPARSE_FOUND)
     )
   endif()
 endif()
+
