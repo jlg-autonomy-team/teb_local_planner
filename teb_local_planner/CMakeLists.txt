@@ -49,21 +49,34 @@ find_package(Boost REQUIRED COMPONENTS system thread)
 find_package(Eigen3 REQUIRED)
 
 
-# 1. SuiteSparse Discovery
-find_package(SuiteSparse QUIET NO_MODULE)
+# 1. SuiteSparse Discovery (Try CMake Config first, fallback to module if present)
+find_package(SuiteSparse QUIET NO_MODULE PATHS /usr/local /usr/local/lib/cmake/SuiteSparse)
 if(NOT SuiteSparse_FOUND)
-  find_package(SUITESPARSE REQUIRED)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules/FindSUITESPARSE.cmake")
+    find_package(SUITESPARSE REQUIRED)
+  else()
+    # Direct fallback if neither config nor module was found
+    find_library(CHOLMOD_LIB NAMES cholmod PATHS /usr/local/lib /usr/lib)
+    find_library(CXSPARSE_LIB NAMES cxsparse csparse PATHS /usr/local/lib /usr/lib)
+    set(SUITESPARSE_LIBRARIES ${CHOLMOD_LIB} ${CXSPARSE_LIB})
+    set(SUITESPARSE_INCLUDE_DIRS /usr/local/include /usr/include/suitesparse)
+  endif()
 endif()
 
 
 # 2. G2O Discovery
-find_package(g2o QUIET NO_MODULE)
+find_package(g2o REQUIRED NO_MODULE)
 if(NOT g2o_FOUND)
   find_package(G2O REQUIRED)
 endif()
 
 
+find_library(G2O_CSPARSE_EXT_LIB NAMES g2o_csparse_extension PATHS /usr/local/lib)
+find_library(G2O_SOLVER_CSPARSE_LIB NAMES g2o_solver_csparse PATHS /usr/local/lib)
+find_library(CXSPARSE_LIB NAMES cxsparse csparse PATHS /usr/local/lib)
+
 # Define core library
+link_directories(/usr/local/lib)
 add_library(teb_local_planner SHARED
 
   src/timed_elastic_band.cpp
@@ -113,6 +126,10 @@ ament_target_dependencies(teb_local_planner
    ${ament_dependencies}
 )
 target_link_libraries(teb_local_planner
+   g2o_csparse_extension
+   g2o_solver_csparse
+   cxsparse
+   cholmod
    ${EXTERNAL_LIBS}
 )
 
