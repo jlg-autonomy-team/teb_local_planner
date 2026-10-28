@@ -1,19 +1,26 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.16)
 project(teb_local_planner)
+
+
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
 
 # Set to Release in order to speed up the program significantly
 set(CMAKE_BUILD_TYPE Release) #None, Debug, Release, RelWithDebInfo, MinSizeRel
 
-# Default to C++14
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
 endif()
 
-#if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-#  add_compile_options(-Wall -Wextra -Wpedantic)
-#endif()
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
 
-## Find catkin macros and libraries
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Module path for custom find modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules")
+
+# Ament dependencies
 find_package(ament_cmake REQUIRED)
 find_package(costmap_converter REQUIRED)
 find_package(dwb_critics REQUIRED)
@@ -21,7 +28,6 @@ find_package(nav_2d_utils REQUIRED)
 find_package(nav2_core REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
 find_package(nav2_util REQUIRED)
-#find_package(interactive_markers REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -37,42 +43,51 @@ find_package(tf2_ros REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 
-message(STATUS "System: ${CMAKE_SYSTEM}")
-## System dependencies are found with CMake's conventions
-SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake_modules)
-message(STATUS "${CMAKE_MODULE_PATH}")
-find_package(SUITESPARSE REQUIRED)
-find_package(G2O REQUIRED)
-find_package(Boost REQUIRED)
 
-# Eigen3 FindScript Backward compatibility (ubuntu saucy)
-# Since FindEigen.cmake is deprecated starting from jade.
-if (EXISTS "FindEigen3.cmake")
-  find_package(Eigen3 REQUIRED)
-  set(Eigen_INCLUDE_DIRS ${Eigen3_INCLUDE_DIRS})
-elseif (EXISTS "FindEigen.cmake")
-  find_package(Eigen REQUIRED)
-elseif (EXISTS "FindEigen.cmake")
-  message(WARNING "No findEigen cmake script found. You must provde one of them,
-  e.g. by adding it to ${PROJECT_SOURCE_DIR}/cmake_modules.")
-endif (EXISTS "FindEigen3.cmake")
+# Math and optimization dependencies
+find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(Eigen3 REQUIRED)
 
-set(EXTERNAL_INCLUDE_DIRS ${Eigen_INCLUDE_DIRS} ${SUITESPARSE_INCLUDE_DIRS} ${G2O_INCLUDE_DIR})
-set(EXTERNAL_LIBS ${Boost_LIBRARIES} ${SUITESPARSE_LIBRARIES} ${G2O_LIBRARIES})
 
-###########
-## Build ##
-###########
+# 1. SuiteSparse Discovery (Try CMake Config first, fallback to module if present)
+find_package(SuiteSparse QUIET NO_MODULE PATHS /usr/local /usr/local/lib/cmake/SuiteSparse)
+if(NOT SuiteSparse_FOUND)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules/FindSUITESPARSE.cmake")
+    find_package(SUITESPARSE REQUIRED)
+  else()
+    # Direct fallback if neither config nor module was found
+    find_library(CHOLMOD_LIB NAMES cholmod PATHS /usr/local/lib /usr/lib)
+    find_library(CXSPARSE_LIB NAMES cxsparse csparse PATHS /usr/local/lib /usr/lib)
+    set(SUITESPARSE_LIBRARIES ${CHOLMOD_LIB} ${CXSPARSE_LIB})
+    set(SUITESPARSE_INCLUDE_DIRS /usr/local/include /usr/include/suitesparse)
+  endif()
+endif()
 
-include_directories(
-  include
-  ${Boost_INCLUDE_DIRS}
-  ${EXTERNAL_INCLUDE_DIRS}
-)
 
-## Build the teb_local_planner library
+# 2. G2O Discovery
+find_package(g2o REQUIRED NO_MODULE)
+if(NOT g2o_FOUND)
+  find_package(G2O REQUIRED)
+endif()
 
+
+find_library(G2O_CSPARSE_EXT_LIB NAMES g2o_csparse_extension PATHS /usr/local/lib)
+find_library(G2O_SOLVER_CSPARSE_LIB NAMES g2o_solver_csparse PATHS /usr/local/lib)
+find_library(CXSPARSE_LIB NAMES cxsparse csparse PATHS /usr/local/lib)
+
+# Define core library
+link_directories(/usr/local/lib)
 add_library(teb_local_planner SHARED
+
+  src/timed_elastic_band.cpp
+  src/optimal_planner.cpp
+  src/obstacles.cpp
+  src/visualization.cpp
+  src/recovery_behaviors.cpp
+  src/teb_config.cpp
+  src/homotopy_class_planner.cpp
+  src/teb_local_planner_ros.cpp
+  src/graph_search.cpp
    src/timed_elastic_band.cpp
    src/optimal_planner.cpp
    src/obstacles.cpp
@@ -83,6 +98,7 @@ add_library(teb_local_planner SHARED
    src/teb_local_planner_ros.cpp
    src/graph_search.cpp
 )
+
 
 set(ament_dependencies
     costmap_converter
@@ -110,53 +126,96 @@ ament_target_dependencies(teb_local_planner
    ${ament_dependencies}
 )
 target_link_libraries(teb_local_planner
+   g2o_csparse_extension
+   g2o_solver_csparse
+   cxsparse
+   cholmod
    ${EXTERNAL_LIBS}
 )
 
 target_compile_definitions(teb_local_planner PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 
+target_include_directories(teb_local_planner PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${EIGEN3_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
+  ${SUITESPARSE_INCLUDE_DIRS}
+  ${G2O_INCLUDE_DIR}
+)
 
-#############
-## Install ##
-#############
 
-## Mark executables and/or libraries for installation
+set(ament_dependencies
+  costmap_converter
+  dwb_critics
+  nav_2d_utils
+  nav2_core
+  nav2_costmap_2d
+  nav2_util
+  geometry_msgs
+  nav_msgs
+  rclcpp
+  rclcpp_action
+  rclcpp_lifecycle
+  std_msgs
+  pluginlib
+  teb_msgs
+  tf2
+  tf2_eigen
+  tf2_geometry_msgs
+  tf2_ros
+  visualization_msgs
+  builtin_interfaces
+)
+
+ament_target_dependencies(teb_local_planner ${ament_dependencies})
+
+# Target-based linking with fallback to raw library paths
+if(TARGET SuiteSparse::CHOLMOD)
+  target_link_libraries(teb_local_planner SuiteSparse::CHOLMOD)
+elseif(TARGET SuiteSparse::SuiteSparse)
+  target_link_libraries(teb_local_planner SuiteSparse::SuiteSparse)
+else()
+  target_link_libraries(teb_local_planner ${SUITESPARSE_LIBRARIES})
+endif()
+
+if(TARGET g2o::core)
+  target_link_libraries(teb_local_planner g2o::core g2o::stuff)
+  if(TARGET g2o::solver_cholmod)
+    target_link_libraries(teb_local_planner  g2o::solver_cholmod)
+  endif()
+else()
+  target_link_libraries(teb_local_planner  ${G2O_LIBRARIES})
+endif()
+
+target_link_libraries(teb_local_planner 
+  Eigen3::Eigen
+  ${Boost_LIBRARIES}
+)
+
+# Installation definitions
 install(TARGETS teb_local_planner
-   DESTINATION lib
+  EXPORT export_teb_local_planner
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
 )
 
-## Mark cpp header files for installation
-install(DIRECTORY include/
-   DESTINATION include/
-)
-
-## Mark other files for installation (e.g. launch and bag files, etc.)
-install(FILES
-  teb_local_planner_plugin.xml
-  DESTINATION share
-  )
-
+install(DIRECTORY include/ DESTINATION include/)
+install(FILES teb_local_planner_plugin.xml DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS scripts/cmd_vel_to_ackermann_drive.py DESTINATION lib/${PROJECT_NAME})
-
 install(DIRECTORY params DESTINATION share/${PROJECT_NAME})
 
+# Exports
 ament_export_include_directories(include)
 ament_export_libraries(teb_local_planner)
+ament_export_targets(export_teb_local_planner)
 ament_export_dependencies(${ament_dependencies})
 pluginlib_export_plugin_description_file(nav2_core teb_local_planner_plugin.xml)
 
-#############
-## Testing ##
-#############
-
 if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
-  #ament_add_gtest(homotopy_class_planner_test
-  #    test/homotopy_class_planner_test.cpp
-  #)
-  #target_link_libraries(homotopy_class_planner_test
-  #    teb_local_planner
-  #)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
 endif()
 
 ament_package()
